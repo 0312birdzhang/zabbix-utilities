@@ -32,8 +32,8 @@ dbname_deploy="deploy"
 #zabbix的库名
 dbport_deploy = 3306
 
-#hostid = 10084
-hostid=10108
+hostid = 10084
+#hostid=10108
 
 items_name1 = "Response code for step \"$2\" of scenario \"$1\"."
 items_name2 = "Response time for step \"$2\" of scenario \"$1\"."
@@ -167,8 +167,9 @@ def insertToZabbix():
                 insertHttptest(httptestid,i,cursor)
             for j in dic_urlmap.get(i):
                 #step插入
-                if querDuplicateHttpStep(j[0],j[1],httptestid):
+                if querDuplicateHttpStep(j[1],httptestid):
                     print "        ---已存在",j[0],"的步骤跟url，跳过插入"
+                else:
                     httpstepid = queryIds("httpstep", "httpstepid")+1
                     sql_step = """
                                         insert into httpstep(httpstepid,httptestid,name,no,url,timeout,posts,
@@ -217,7 +218,7 @@ def insertToZabbix():
                         cursor.execute(sql_stepitem,data_stepitem2)
                         cursor.execute(sql_stepitem,data_stepitem3)
                         conn.commit()
-                    print "   |___",j[0]," WEB拨测小项处理完成"
+                    print "    |__",j[0]," WEB拨测小项处理完成"
             #插入大的web item
             try:
                 preitemid1= queryIds("items", "itemid")+1
@@ -252,12 +253,13 @@ def insertToZabbix():
             except:
                 #print j[0],"插入出错"
                 continue
-            print "____",i,"WEB拨测大项处理完成","\n"
+            print "__|__",i,"WEB拨测大项处理完成","\n"
     except mysql.connector.Error as e:
         print 'insert into zabbix fails!{}'.format(e)
     finally:
         conn.close()
         cursor.close()
+        print "所有任务已处理完成！！！"
    
     
 """
@@ -316,12 +318,12 @@ def querDuplicateHttpTest(name,hostid):
 """
     查询httpstep表，查看是否已经插入了
 """
-def querDuplicateHttpStep(name,url,httptestid):
+def querDuplicateHttpStep(url,httptestid):
     try:
         conn= mysql.connector.connect(**config_zabbix)
         cursor = conn.cursor(buffered=True)
-        sql="select count(1) from httpstep where name = %s and url= %s and httptestid = %s"
-        data=(name,url,httptestid)
+        sql="select count(1) from httpstep where  url= %s and httptestid = %s"
+        data=(url,httptestid)
         cursor.execute(sql,data)
         httpstepid =  cursor.fetchone()[0]
         if httpstepid > 0:
