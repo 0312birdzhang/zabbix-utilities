@@ -155,19 +155,20 @@ def insertToZabbix():
         cursor = conn.cursor(buffered=True)
         for i in dic_urlmap.keys():
             step_index = 1
+            httptestid=1 #临时
             if querDuplicateHttpTest(i,hostid) > 0:
                 print "WEB拨测大项已经存在",i,"，跳过插入，进入步骤"
                 #查出id等
                 #insertHttptest(querDuplicateHttpTest(i,hostid),i,cursor)
                 httptestid=querDuplicateHttpTest(i,hostid)
             else:
+                print "____开始处理",i,"WEB拨测大项"
                 httptestid=queryIds("httptest","httptestid")+1
                 insertHttptest(httptestid,i,cursor)
             for j in dic_urlmap.get(i):
                 #step插入
-                if querDuplicateHttpStep(j[0],j[1],httptestid) > 0:
+                if querDuplicateHttpStep(j[0],j[1],httptestid):
                     print "        ---已存在",j[0],"的步骤跟url，跳过插入"
-                else:
                     httpstepid = queryIds("httpstep", "httpstepid")+1
                     sql_step = """
                                         insert into httpstep(httpstepid,httptestid,name,no,url,timeout,posts,
@@ -216,7 +217,7 @@ def insertToZabbix():
                         cursor.execute(sql_stepitem,data_stepitem2)
                         cursor.execute(sql_stepitem,data_stepitem3)
                         conn.commit()
-                print j[0]," WEB拨测小项处理完成"
+                    print "   |___",j[0]," WEB拨测小项处理完成"
             #插入大的web item
             try:
                 preitemid1= queryIds("items", "itemid")+1
@@ -251,30 +252,14 @@ def insertToZabbix():
             except:
                 #print j[0],"插入出错"
                 continue
-        print i,"WEB拨测大项处理完成"
+            print "____",i,"WEB拨测大项处理完成","\n"
     except mysql.connector.Error as e:
         print 'insert into zabbix fails!{}'.format(e)
     finally:
         conn.close()
         cursor.close()
    
-        
-def testInsert():
-    try:
-        conn= mysql.connector.connect(**config_zabbix)
-        cursor = conn.cursor()
-        sql="select name from  httptest where name = %s"
-        cursor.execute(sql,["个性化推荐接口"])
-        print cursor.fetchall()[0]
-        cursor.execute(sql,[cursor.fetchone()[0]])
-        print cursor.fetchall()[0]
-    except mysql.connector.Error as e:
-        print 'connect fails!{}'.format(e)
-    finally:
-        conn.close()
-        cursor.close()
-        
-
+    
 """
     查询该主机上的一个application id，如果没有则创建一个名为“webmonitor”的
 """
@@ -335,14 +320,14 @@ def querDuplicateHttpStep(name,url,httptestid):
     try:
         conn= mysql.connector.connect(**config_zabbix)
         cursor = conn.cursor(buffered=True)
-        sql="select httpstepid from httpstep where name = %s and url= %s and httptestid = %s"
+        sql="select count(1) from httpstep where name = %s and url= %s and httptestid = %s"
         data=(name,url,httptestid)
         cursor.execute(sql,data)
-        httpstepid =  cursor.fetchone()
-        if httpstepid:
-            return httpstepid[0]
+        httpstepid =  cursor.fetchone()[0]
+        if httpstepid > 0:
+            return True
         else:
-            return 0
+            return False
         
     except mysql.connector.Error as e:
         print 'queryHttpStep fails!{}'.format(e)
