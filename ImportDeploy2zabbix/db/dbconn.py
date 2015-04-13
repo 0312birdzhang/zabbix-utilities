@@ -32,7 +32,7 @@ dbname_deploy="deploy"
 #zabbix的库名
 dbport_deploy = 3306
 
-hostid = 10084
+hostid = 10107
 #hostid=10108
 
 items_name1 = "Response code for step \"$2\" of scenario \"$1\"."
@@ -218,7 +218,7 @@ def insertToZabbix():
                         cursor.execute(sql_stepitem,data_stepitem2)
                         cursor.execute(sql_stepitem,data_stepitem3)
                         conn.commit()
-                    print "    |__",j[0]," WEB拨测小项处理完成"
+                    print " |______",j[0]," WEB拨测小项处理完成"
             #插入大的web item
             try:
                 preitemid1= queryIds("items", "itemid")+1
@@ -253,7 +253,7 @@ def insertToZabbix():
             except:
                 #print j[0],"插入出错"
                 continue
-            print "__|__",i,"WEB拨测大项处理完成","\n"
+            print "|___",i,"WEB拨测大项处理完成","\n"
     except mysql.connector.Error as e:
         print 'insert into zabbix fails!{}'.format(e)
     finally:
