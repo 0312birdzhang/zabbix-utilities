@@ -77,9 +77,6 @@ def insertTriggersAndFunctions():
         #根据key的类型，拼接不同的告警规则
         #如过是time，则是小于100ms告警等
         for i in dic_triggerMap.keys():
-            #三条重复的只选一个，可能会出现错误
-            if i.startswith("web.test.in") or i.startswith("web.test.time"):
-                continue
             functionid = queryIds("functions", "functionid")+1
             triggerid = queryIds("triggers", "triggerid") +1
             list_itemid  = dic_triggerMap.get(i).split(",")
@@ -89,20 +86,18 @@ def insertTriggersAndFunctions():
             expression = ""
             triggername=""
             for j in range(len(list_itemid)):
-                #if i.startswith("web.test.rspcode"):
-                #triggername="-返回码"
-                expression+="{%s}<>200 and " %(functionid+j)
-            for j in range(len(list_itemid)):
-               # if i.startswith("web.test.time"):
-                    #triggername="-响应时间"
-                expression+="{%s} > 0.1 and " %(functionid+len(list_itemid)+j)
-            for j in range(len(list_itemid)):
-                #if i.startswith("web.test.in"):
-                    #triggername="-数据获取"
-                expression+="{%s}=1 and " %(functionid+len(list_itemid)*2+j)
+                if i.startswith("web.test.rspcode"):
+                    triggername="-返回码"
+                    expression+="{%s}<>200 and " %(functionid+j)
+                if i.startswith("web.test.time"):
+                    triggername="-响应时间"
+                    expression+="{%s} > 0.1 and " %(functionid+j)
+#                 if i.startswith("web.test.in"):
             if len(expression) == 0:
                 print"告警规则不符合，跳过..."
                 continue
+#             for j in range(len(list_itemid)):
+#                 expression+="{%s}=1 and " %(functionid+len(list_itemid)+j)
             #截取掉最后一个and
             expression = expression[:-5]
             description = "WEB告警-"+queryItemName(list_itemid[0])+triggername
@@ -114,7 +109,7 @@ def insertTriggersAndFunctions():
             cursor.execute(sql,data)
             print "插入triggers表---",triggerid
             updateIds("triggers", "triggerid", triggerid)
-            updateIds("functions", "functionid", functionid+len(list_itemid)*3-1)
+            updateIds("functions", "functionid", functionid+len(list_itemid)*2-1)
             #插入triggers表
             #然后插入functions表
             sql_function = """
@@ -123,12 +118,10 @@ def insertTriggersAndFunctions():
                                     """
             list_itemid = dic_triggerMap.get(i).split(",")
             for j in range(len(list_itemid)):
-                data_rspcode=[functionid+j,list_itemid[j],triggerid,"last",0]
-                cursor.execute(sql_function,data_rspcode)
-                data_rstime=[functionid+len(list_itemid)+j,list_itemid[j],triggerid,"last",0]
-                cursor.execute(sql_function,data_rstime) #再次执行
-                data_nodata=[functionid+len(list_itemid)*2+j,list_itemid[j],triggerid,"nodata",180]
-                cursor.execute(sql_function,data_nodata)
+                data_function=[functionid+j,list_itemid[j],triggerid,"last",0]
+                cursor.execute(sql_function,data_function)
+#                 data_nodata=[functionid+len(list_itemid)+j,list_itemid[j],triggerid,"nodata",180]
+#                 cursor.execute(sql_function,data_nodata)
                 print "___插入functions表"
         conn.commit()
         #要先插triggers表，所以再执行一遍。。。
