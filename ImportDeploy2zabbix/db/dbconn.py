@@ -4,6 +4,8 @@
 Created on 2015年4月9日
 
 @author: zhangdebo
+
+@note: 从自动部署系统获取url监控数据并导入的zabbix的web监控
 '''
 import mysql.connector
 
@@ -32,6 +34,7 @@ dbname_deploy="deploy"
 #zabbix的库名
 dbport_deploy = 3306
 
+#要插入哪台主机的hostid
 hostid = 10107
 #hostid=10108
 
@@ -179,7 +182,7 @@ def insertToZabbix():
                     #data2=[httpstepid,httptestid,j[0].encode("utf8"),step_index,j[1],15,"","","","",1,0,""]
                     if i == j[0]:
                         j[0]=j[0]+str(step_index)
-                    data2 = [httpstepid,httptestid,j[0],step_index,j[1],15,"","","","",1,0,""]
+                    data2 = [httpstepid,httptestid,j[0],step_index,j[1],15,"","","200","",1,0,""]
                     cursor.execute(sql_step,data2)
                     step_index=step_index+1
                     updateIds("httpstep", "httpstepid",httpstepid)
