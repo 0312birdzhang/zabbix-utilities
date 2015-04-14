@@ -26,6 +26,8 @@ config_zabbix={'host':dbhost_zabbix,#默认127.0.0.1
         'charset':'utf8'#默认即为utf8  
         }
 
+#告警级别
+priority=4
 
 """
     {"key":[itemid,itemid],}
@@ -91,14 +93,15 @@ def insertTriggersAndFunctions():
                     triggername="-响应时间"
                     expression+="{%s} > 0.1 and " %(functionid+j)
 #                 if i.startswith("web.test.in"):
-#                     expression+="{%s} > 0.1 and " %(functionid+j)
-                #截取掉最后一个and
             if len(expression) == 0:
                 print"告警规则不符合，跳过..."
                 continue
+            for j in range(len(list_itemid)):
+                expression+="{%s}=1 and " %(functionid+len(list_itemid)+j)
+            #截取掉最后一个and
             expression = expression[:-5]
             description = "WEB告警-"+queryItemName(list_itemid[0])+triggername
-            data=[triggerid,expression,description,3,1,0]
+            data=[triggerid,expression,description,priority,1,0]
             #已经存在的跳过
             if queryTriggerName(description,list_itemid[0]):
                 print "该主机上已经存在同名的触发器了，跳过"
@@ -106,18 +109,20 @@ def insertTriggersAndFunctions():
             cursor.execute(sql,data)
             print "插入triggers表---",triggerid
             updateIds("triggers", "triggerid", triggerid)
-            updateIds("functions", "functionid", functionid+len(list_itemid)-1)
+            updateIds("functions", "functionid", functionid+len(list_itemid)*2-1)
             #插入triggers表
             #然后插入functions表
             sql_function = """
-                                    insert into functions(functionid,itemid,triggerid,function)
-                                    values(%s,%s,%s,%s) 
+                                    insert into functions(functionid,itemid,triggerid,function,parameter)
+                                    values(%s,%s,%s,%s,%s) 
                                     """
             list_itemid = dic_triggerMap.get(i).split(",")
             for j in range(len(list_itemid)):
-                data_function=[functionid+j,list_itemid[j],triggerid,"last"]
+                data_function=[functionid+j,list_itemid[j],triggerid,"last",0]
                 cursor.execute(sql_function,data_function)
-                print "___插入functions表",functionid+j
+                data_nodata=[functionid+len(list_itemid)+j,list_itemid[j],triggerid,"nodata",180]
+                cursor.execute(sql_function,data_nodata)
+                print "___插入functions表"
         conn.commit()
         #要先插triggers表，所以再执行一遍。。。
     except mysql.connector.Error as e:
