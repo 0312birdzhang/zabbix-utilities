@@ -19,3 +19,6 @@ if 3>0:
     print "OK"
 #if __name__ == "__main__":
     #duplicate(a)
+    
+for i in xrange(1,4):
+    print i

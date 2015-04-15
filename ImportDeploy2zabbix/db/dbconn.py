@@ -35,7 +35,7 @@ dbname_deploy="deploy"
 dbport_deploy = 3306
 
 #要插入哪台主机的hostid
-hostid = 10107
+hostid = 10106
 #hostid=10108
 
 items_name1 = "Response code for step \"$2\" of scenario \"$1\"."

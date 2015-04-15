@@ -91,7 +91,7 @@ def insertTriggersAndFunctions():
                     expression+="{%s}<>200 and " %(functionid+j)
                 if i.startswith("web.test.time"):
                     triggername="-响应时间"
-                    expression+="{%s} > 0.1 and " %(functionid+j)
+                    expression+="{%s} > 0.2 and " %(functionid+j)
 #                 if i.startswith("web.test.in"):
             if len(expression) == 0:
                 print"告警规则不符合，跳过..."
