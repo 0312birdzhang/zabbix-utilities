@@ -22,3 +22,6 @@ if 3>0:
     
 for i in xrange(1,4):
     print i
+    
+a=['123','1232']
+print ",".join(a)

@@ -8,7 +8,7 @@ Created on 2015年4月9日
 @note: 从自动部署系统获取url监控数据并导入的zabbix的web监控
 '''
 import mysql.connector
-
+import string
 #定义urlmap 
 # note或project为key
 #{"note/projectname":[ip,status,...],"test2":[]...}
@@ -16,27 +16,26 @@ dic_urlmap={}
 
 #创建的应用程序名称
 applicationname="webmonitor"
-#DB
-dbhost_zabbix="127.0.0.1"
-username_zabbix="root"
-password_zabbix="1234"
-#自动部署系统的库名
-dbname_zabbix="zabbix" 
 
+#Zabbix
+dbhost_zabbix="192.168.3.52"
+username_zabbix="zabbix"
+password_zabbix="3G_gomo_2015"
+dbname_zabbix="zabbix_new" 
 dbport_zabbix = 3306
 
-#DB
-dbhost_deploy="127.0.0.1"
-username_deploy="root"
-password_deploy="1234"
+#自动部署系统
+dbhost_deploy="192.168.165.107"
+username_deploy="deploy"
+password_deploy="deploy"
 #自动部署系统的库名
 dbname_deploy="deploy" 
-#zabbix的库名
-dbport_deploy = 3306
+#deploy的库名
+dbport_deploy = 3311
 
 #要插入哪台主机的hostid
-hostid = 10106
-#hostid=10108
+hostid = 11765
+
 
 items_name1 = "Response code for step \"$2\" of scenario \"$1\"."
 items_name2 = "Response time for step \"$2\" of scenario \"$1\"."
@@ -74,7 +73,8 @@ def queryDeploy():
     finally:
         conn.close()
         cursor.close()
-        insertToZabbix()
+        #insertToZabbix()
+        print dic_urlmap
 
 
 """
@@ -122,24 +122,31 @@ def updateIds(table,field,nextid):
         ],]}
 """
 def urlMaps(urlcp):
-    if dic_urlmap.get(urlcp[12]):
-        if urlcp[4]:
-            dic_urlmap[urlcp[12]].append([urlcp[4],urlcp[2],urlcp[6]])
+    if dic_urlmap.get(urlcp[4]):
+        tmp=urlcp[4]
+        isNum=tmp[-1]
+        nextKey=""
+        if isNum.isdigit():
+            nextKey=string.atoi(isNum)+1
         else:
-            dic_urlmap[urlcp[12]].append([urlcp[12],urlcp[2],urlcp[6]])
-    elif dic_urlmap.get(urlcp[4]):
-        if urlcp[12]:
-            dic_urlmap[urlcp[12]].append([urlcp[4],urlcp[2],urlcp[6]])
+            nextKey="1" 
+        dic_urlmap[urlcp[4]+str(nextKey)] = [[urlcp[4],urlcp[2],urlcp[6]]]
+    elif dic_urlmap.get(urlcp[12]):
+        tmp=urlcp[12]
+        isNum=tmp[-1]
+        nextKey=""
+        if isNum.isdigit():
+            nextKey=string.atoi(isNum)+1
         else:
-            dic_urlmap[urlcp[4]].append([urlcp[4],urlcp[2],urlcp[6]])
+            nextKey="1" 
+        dic_urlmap[urlcp[12]+str(nextKey)] = [[urlcp[12],urlcp[2],urlcp[6]]]
     else:
-        if urlcp[12]:
-            if urlcp[4]:
-                dic_urlmap[urlcp[12].title()] = [[urlcp[4],urlcp[2],urlcp[6]]]
-            else:
-                dic_urlmap[urlcp[12].title()] = [[urlcp[12],urlcp[2],urlcp[6]]]
-        elif urlcp[4]:
+        if urlcp[4]:
             dic_urlmap[urlcp[4].title()] = [[urlcp[4],urlcp[2],urlcp[6]]]
+        elif urlcp[12]:
+            dic_urlmap[urlcp[12].title()] = [[urlcp[12],urlcp[2],urlcp[6]]]
+        else:
+            dic_urlmap[urlcp[2]] = [[urlcp[2],urlcp[2],urlcp[6]]]
 
 """
     去掉重复的url数据
@@ -272,11 +279,12 @@ def getAppId(hostid):
     try:
         conn= mysql.connector.connect(**config_zabbix)
         cursor = conn.cursor(buffered=True)
-        sql="select applicationid from applications where hostid = %s"
+        sql="select applicationid from applications where hostid = %s and name = 'webmonitor'"
         cursor.execute(sql, [hostid])
         appid = cursor.fetchone()
         if appid:
-            return appid[0]
+            #return appid[0]
+            return 24709
         else:
             print "empty,will create"
             sql_insert = """ insert into applications(applicationid,hostid,name) 
@@ -287,7 +295,8 @@ def getAppId(hostid):
             cursor.execute(sql_insert,data)
             conn.commit()
             updateIds("applications", "applicationid", next_applicationid)
-            return next_applicationid
+            #return next_applicationid
+            return 24709
         
     except mysql.connector.Error as e:
         print 'query appid fails!{}'.format(e)

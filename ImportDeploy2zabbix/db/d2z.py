@@ -8,7 +8,7 @@ Created on 2015年4月9日
 '''
 import mysql.connector
 from _mysql import NULL
-
+import string
 #定义urlmap 
 # note或project为key
 #{"note/projectname":[ip,status,...],"test2":[]...}
@@ -25,18 +25,19 @@ dbname_zabbix="zabbix"
 
 dbport_zabbix = 3306
 
-#DB
-dbhost_deploy="127.0.0.1"
-username_deploy="root"
-password_deploy="1234"
+
+#自动部署系统
+dbhost_deploy="192.168.165.107"
+username_deploy="deploy"
+password_deploy="deploy"
 #自动部署系统的库名
 dbname_deploy="deploy" 
-#zabbix的库名
-dbport_deploy = 3306
+#deploy的库名
+dbport_deploy = 3311
 
-hostid = 10084
-#hostid=10106
-#applicationid=460
+#hostid = 10084
+hostid=10106
+applicationid=469
 
 items_name1 = "Response code for step \"$2\" of scenario \"$1\"."
 items_name2 = "Response time for step \"$2\" of scenario \"$1\"."
@@ -68,13 +69,14 @@ def queryDeploy():
         cursor.execute(sql)
         for i in cursor.fetchall():
             urlMaps(i)
-         #to insert
+        #to insert
     except mysql.connector.Error as e:
         print 'query Deploy fails!{}'.format(e)
     finally:
         conn.close()
         cursor.close()
         insertToZabbix()
+        #print dic_urlmap
 
 
 """
@@ -122,24 +124,31 @@ def updateIds(table,field,nextid):
         ],]}
 """
 def urlMaps(urlcp):
-    if dic_urlmap.get(urlcp[12]):
-        if urlcp[4]:
-            dic_urlmap[urlcp[12].strip()].append([urlcp[4],urlcp[2],urlcp[6]])
+    if dic_urlmap.get(urlcp[4]):
+        tmp=urlcp[4]
+        isNum=tmp[-1]
+        nextKey=""
+        if isNum.isdigit():
+            nextKey=string.atoi(isNum)+1
         else:
-            dic_urlmap[urlcp[12].strip()].append([urlcp[12],urlcp[2],urlcp[6]])
-    elif dic_urlmap.get(urlcp[4]):
-        if urlcp[12]:
-            dic_urlmap[urlcp[12].strip()].append([urlcp[4],urlcp[2],urlcp[6]])
+            nextKey="1" 
+        dic_urlmap[urlcp[4]+str(nextKey)] = [[urlcp[4],urlcp[2],urlcp[6]]]
+    elif dic_urlmap.get(urlcp[12]):
+        tmp=urlcp[12]
+        isNum=tmp[-1]
+        nextKey=""
+        if isNum.isdigit():
+            nextKey=string.atoi(isNum)+1
         else:
-            dic_urlmap[urlcp[4].strip()].append([urlcp[4],urlcp[2],urlcp[6]])
+            nextKey="1" 
+        dic_urlmap[urlcp[12]+str(nextKey)] = [[urlcp[12],urlcp[2],urlcp[6]]]
     else:
-        if urlcp[12]:
-            if urlcp[4]:
-                dic_urlmap[urlcp[12].strip().title()] = [[urlcp[4],urlcp[2],urlcp[6]]]
-            else:
-                dic_urlmap[urlcp[12].strip().title()] = [[urlcp[12],urlcp[2],urlcp[6]]]
-        elif urlcp[4]:
-            dic_urlmap[urlcp[4].strip().title()] = [[urlcp[4],urlcp[2],urlcp[6]]]
+        if urlcp[4]:
+            dic_urlmap[urlcp[4].title()] = [[urlcp[4],urlcp[2],urlcp[6]]]
+        elif urlcp[12]:
+            dic_urlmap[urlcp[12].title()] = [[urlcp[12],urlcp[2],urlcp[6]]]
+        else:
+            dic_urlmap[urlcp[2]] = [[urlcp[2],urlcp[2],urlcp[6]]]
 
 """
     去掉重复的url数据
@@ -153,139 +162,131 @@ def duplicate(dicMap):
 
 def insertToZabbix():
     try:
+        print dic_urlmap
         conn= mysql.connector.connect(**config_zabbix)
-        cursor = conn.cursor()
+        cursor = conn.cursor(buffered=True)
         for i in dic_urlmap.keys():
             step_index = 1
-            httptestid=queryIds("httptest","httptestid")+1
-            #insertHttptest(httptestid,i,cursor)
-            sql='''insert into httptest(httptestid,name,applicationid,delay,status,agent,hostid) 
-                    values(%s,%s,%s,%s,%s,%s,%s)'''
-            data=[httptestid,i,getAppId(hostid),60,0,"Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.1; Trident/6.0)",hostid]
-            cursor.execute(sql,data)
-            conn.commit()
-            updateIds("httptest", "httptestid",httptestid)
+            httptestid=1 #临时
+            if querDuplicateHttpTest(i,hostid) > 0:
+                print "WEB拨测大项已经存在",i,"，跳过插入，进入步骤"
+                #查出id等
+                #insertHttptest(querDuplicateHttpTest(i,hostid),i,cursor)
+                httptestid=querDuplicateHttpTest(i,hostid)
+            else:
+                print "____开始处理",i,"WEB拨测大项"
+                httptestid=queryIds("httptest","httptestid")+1
+                insertHttptest(httptestid,i,cursor)
             for j in dic_urlmap.get(i):
-                httpstepid = queryIds("httpstep", "httpstepid")+1
-                sql_step = """
-                                    insert into httpstep(httpstepid,httptestid,name,no,url,timeout,posts,
-                                    required,status_codes,variables,follow_redirects,retrieve_mode,headers)
-                                     values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                #step插入
+                if querDuplicateHttpStep(j[1],httptestid):
+                    print "        ---已存在",j[0],"的步骤跟url，跳过插入"
+                else:
+                    httpstepid = queryIds("httpstep", "httpstepid")+1
+                    sql_step = """
+                                        insert into httpstep(httpstepid,httptestid,name,no,url,timeout,posts,
+                                        required,status_codes,variables,follow_redirects,retrieve_mode,headers)
+                                         values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                                        """
+                    #data2=[httpstepid,httptestid,j[0].encode("utf8"),step_index,j[1],15,"","","","",1,0,""]
+                    if i == j[0]:
+                        j[0]=j[0]+str(step_index)
+                    data2 = [httpstepid,httptestid,j[0],step_index,j[1],15,"","","200","",1,0,""]
+                    cursor.execute(sql_step,data2)
+                    step_index=step_index+1
+                    updateIds("httpstep", "httpstepid",httpstepid)
+                    
+                    
+                    #插入小的web item
+                    itemid=queryIds("items", "itemid")
+                    sql_item = """
+                                        insert into items(itemid,type,hostid,name,key_,delay,history,trends,status,value_type,units)
+                                        values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                                     """
-                #data2=[httpstepid,httptestid,j[0].encode("utf8"),step_index,j[1],15,"","","","",1,0,""]
-                if i == j[0]:
-                    j[0]=j[0]+"_"+str(step_index)
-                data2 = [httpstepid,httptestid,j[0],step_index,j[1],15,"","","","",1,0,""]
-                cursor.execute(sql_step,data2)
-                #print "to httpstep---"
-                step_index=step_index+1
-                updateIds("httpstep", "httpstepid",httpstepid)
-                #插入小的web item
-                itemid1=queryIds("items", "itemid")+1
-                sql_item = """
-                                    insert into items(itemid,type,hostid,name,key_,delay,history,trends,status,value_type,units)
-                                    values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                                """
-                
-                data_item1=[itemid1,9,hostid,items_name1,"web.test.rspcode["+i+","+j[0]+"]",60,30,90,0,3,""]
-#                 if querDuplicateItems(data_item1[4], hostid):
-#                     continue
-                #print "insert to item"
-                cursor.execute(sql_item,data_item1)
-                updateIds("items", "itemid", itemid1)
-                
-                itemid2=queryIds("items", "itemid")+1
-                data_item2=[itemid2,9,hostid,items_name2,"web.test.time["+i+","+j[0]+"]",60,30,90,0,0,"s"]
-                cursor.execute(sql_item,data_item2)
-                #conn.commit()
-                updateIds("items", "itemid", itemid2)
-                #print "+++++to item"
-                itemid3=queryIds("items", "itemid")+1
-                data_item3=[itemid3,9,hostid,items_name3,"web.test.in["+i+","+j[0]+"]",60,30,90,0,0,"Bps"]
-                cursor.execute(sql_item,data_item3)
-                #conn.commit()
-                updateIds("items", "itemid", itemid3)
-                
-                #插入httpstepitem表
-                httpstepitemid = queryIds("httpstepitem", "httpstepitemid")
-                sql_stepitem = """
-                                            insert into httpstepitem values(%s,%s,%s,%s)
-                                            """
-                data_stepitem1 =[httpstepitemid+1,httpstepid,itemid1,0]
-                data_stepitem2 =[httpstepitemid+2,httpstepid,itemid2,1]
-                data_stepitem3 =[httpstepitemid+3,httpstepid,itemid3,2]
-                updateIds("httpstepitem", "httpstepitemid", httpstepitemid+3)
-                
-                cursor.execute(sql_stepitem,data_stepitem1)
-                cursor.execute(sql_stepitem,data_stepitem2)
-                cursor.execute(sql_stepitem,data_stepitem3)
-                conn.commit()
+                    
+                    data_item1=[itemid+1,9,hostid,items_name1,"web.test.rspcode["+i+","+j[0]+"]",60,30,90,0,3,""]
+                    data_item2=[itemid+2,9,hostid,items_name2,"web.test.time["+i+","+j[0]+"]",60,30,90,0,0,"s"]
+                    data_item3=[itemid+3,9,hostid,items_name3,"web.test.in["+i+","+j[0]+"]",60,30,90,0,0,"Bps"]
+                    if querDuplicateItems(data_item1[4], hostid) or querDuplicateItems(data_item2[4], hostid)  or querDuplicateItems(data_item3[4], hostid):
+                        continue
+                    else:
+                        cursor.execute(sql_item,data_item1)
+                        cursor.execute(sql_item,data_item2)
+                        cursor.execute(sql_item,data_item3)
+                        conn.commit()
+                        updateIds("items", "itemid", itemid+3)
+                        
+                        #插入httpstepitem表
+                        httpstepitemid = queryIds("httpstepitem", "httpstepitemid")
+                        sql_stepitem = """
+                                                    insert into httpstepitem values(%s,%s,%s,%s)
+                                                    """
+                        data_stepitem1 =[httpstepitemid+1,httpstepid,itemid+1,0]
+                        data_stepitem2 =[httpstepitemid+2,httpstepid,itemid+2,1]
+                        data_stepitem3 =[httpstepitemid+3,httpstepid,itemid+3,2]
+                        updateIds("httpstepitem", "httpstepitemid", httpstepitemid+3)
+                        
+                        cursor.execute(sql_stepitem,data_stepitem1)
+                        cursor.execute(sql_stepitem,data_stepitem2)
+                        cursor.execute(sql_stepitem,data_stepitem3)
+                        conn.commit()
+                    print " |______",j[0]," WEB拨测小项处理完成"
             #插入大的web item
             try:
-                print "插入大的item",i
-                preitemid= queryIds("items", "itemid")
-                data_preitem1 = [preitemid+1,9,hostid,"Last error message of scenario \"$1\".","web.test.error["+i+"]",60,30,90,0,1,""]
+                preitemid1= queryIds("items", "itemid")+1
+                data_preitem1 = [preitemid1,9,hostid,"Last error message of scenario \"$1\".","web.test.error["+i+"]",60,30,90,0,1,""]
+                if querDuplicateItems(data_preitem1[4], hostid):
+                    continue
                 cursor.execute(sql_item,data_preitem1)
+                updateIds("items", "itemid", preitemid1)
                 
-                data_preitem2 = [preitemid+2,9,hostid,"Failed step of scenario \"$1\".","web.test.fail["+i+"]",60,30,90,0,3,""]
+                preitemid2= queryIds("items", "itemid")+1
+                data_preitem2 = [preitemid2,9,hostid,"Failed step of scenario \"$1\".","web.test.fail["+i+"]",60,30,90,0,3,""]
                 cursor.execute(sql_item,data_preitem2)
-            
-                data_preitem3 = [preitemid+3,9,hostid,"Download speed for scenario \"$1\".","web.test.in["+i+",,bps]",60,30,90,0,0,"Bps"]
+                updateIds("items", "itemid", preitemid2)
+                
+                preitemid3= queryIds("items", "itemid")+1
+                data_preitem3 = [preitemid3,9,hostid,"Download speed for scenario \"$1\".","web.test.in["+i+",,bps]",60,30,90,0,0,"Bps"]
                 cursor.execute(sql_item,data_preitem3)
-                updateIds("items", "itemid", preitemid+3)
+                updateIds("items", "itemid", preitemid3)
                 
                 #插入httptestitem
                 sql_httptestitem= "insert into httptestitem values(%s,%s,%s,%s)"
                 httptestitemid = queryIds("httptestitem", "httptestitemid")
-                data_httptestitem1 = [httptestitemid+1,httptestid,preitemid+3,2]
-                data_httptestitem2 = [httptestitemid+2,httptestid,preitemid+2,3]
-                data_httptestitem3 = [httptestitemid+3,httptestid,preitemid+1,4]
+                data_httptestitem1 = [httptestitemid+1,httptestid,preitemid3,2]
+                data_httptestitem2 = [httptestitemid+2,httptestid,preitemid2,3]
+                data_httptestitem3 = [httptestitemid+3,httptestid,preitemid1,4]
                 cursor.execute(sql_httptestitem,data_httptestitem1)
                 cursor.execute(sql_httptestitem,data_httptestitem2)
                 cursor.execute(sql_httptestitem,data_httptestitem3)
                 updateIds("httptestitem", "httptestitemid",httptestitemid+3)
                 conn.commit()
-                
+                #cursor.fetchall()
             except:
                 #print j[0],"插入出错"
                 continue
-            #print "已插入",step_index,"大项"
+            print "|___",i,"WEB拨测大项处理完成","\n"
     except mysql.connector.Error as e:
         print 'insert into zabbix fails!{}'.format(e)
     finally:
         conn.close()
         cursor.close()
+        print "所有任务已处理完成！！！"
    
-        
-def testInsert():
-    try:
-        conn= mysql.connector.connect(**config_zabbix)
-        cursor = conn.cursor()
-        sql="select name from  httptest where name = %s"
-        cursor.execute(sql,["个性化推荐接口"])
-        print cursor.fetchall()[0]
-        cursor.execute(sql,[cursor.fetchone()[0]])
-        print cursor.fetchall()[0]
-    except mysql.connector.Error as e:
-        print 'connect fails!{}'.format(e)
-    finally:
-        conn.close()
-        cursor.close()
-        
-
+    
 """
     查询该主机上的一个application id，如果没有则创建一个名为“webmonitor”的
 """
 def getAppId(hostid):
     try:
         conn= mysql.connector.connect(**config_zabbix)
-        cursor = conn.cursor()
-        sql="select applicationid from applications where hostid = %s"
+        cursor = conn.cursor(buffered=True)
+        sql="select applicationid from applications where hostid = %s and name = 'webmonitor'"
         cursor.execute(sql, [hostid])
         appid = cursor.fetchone()
         if appid:
-            print "++++++appid:",appid[0]
-            return appid[0]
+            #return appid[0]
+            return 469
         else:
             print "empty,will create"
             sql_insert = """ insert into applications(applicationid,hostid,name) 
@@ -296,14 +297,14 @@ def getAppId(hostid):
             cursor.execute(sql_insert,data)
             conn.commit()
             updateIds("applications", "applicationid", next_applicationid)
-            return next_applicationid
+            #return next_applicationid
+            return 469
         
     except mysql.connector.Error as e:
         print 'query appid fails!{}'.format(e)
     finally:
         conn.close()
         cursor.close()
-       
         
 
 """
@@ -312,7 +313,7 @@ def getAppId(hostid):
 def querDuplicateHttpTest(name,hostid):
     try:
         conn= mysql.connector.connect(**config_zabbix)
-        cursor = conn.cursor()
+        cursor = conn.cursor(buffered=True)
         sql="select httptestid from httptest where name like %s and hostid= %s"
         data=(name,hostid)
         cursor.execute(sql,data)
@@ -331,18 +332,18 @@ def querDuplicateHttpTest(name,hostid):
 """
     查询httpstep表，查看是否已经插入了
 """
-def querDuplicateHttpStep(name,url):
+def querDuplicateHttpStep(url,httptestid):
     try:
         conn= mysql.connector.connect(**config_zabbix)
-        cursor = conn.cursor()
-        sql="select httpstepid from httpstep where name = %s and url= %s"
-        data=(name,url)
+        cursor = conn.cursor(buffered=True)
+        sql="select count(1) from httpstep where  url= %s and httptestid = %s"
+        data=(url,httptestid)
         cursor.execute(sql,data)
-        httpstepid =  cursor.fetchone()
-        if httpstepid:
-            return httpstepid[0]
+        httpstepid =  cursor.fetchone()[0]
+        if httpstepid > 0:
+            return True
         else:
-            return 0
+            return False
         
     except mysql.connector.Error as e:
         print 'queryHttpStep fails!{}'.format(e)
@@ -359,11 +360,11 @@ def querDuplicateHttpStep(name,url):
 def querDuplicateItems(key,hostid):
     try:
         conn= mysql.connector.connect(**config_zabbix)
-        cursor = conn.cursor()
+        cursor = conn.cursor(buffered=True)
         sql="select count(1) from items where key_ = %s and hostid= %s"
         data=(key,hostid)
         cursor.execute(sql,data)
-        countitem =  cursor.fetchone()[0]
+        countitem =  cursor.fetchall()[0][0]
         if countitem > 0:
             return True
         else:
@@ -390,9 +391,9 @@ def insertHttptest(httptestid,i,cursor):
 
 if __name__ == "__main__":
     #queryIds("httptest","httptestid")
-    #queryDeploy()
+    queryDeploy()
     #testInsert()
-    getAppId(10108)
+    #getAppId(hostid)
     
     
     

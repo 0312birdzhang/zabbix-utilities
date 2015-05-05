@@ -4,18 +4,17 @@
 Created on 2015年4月13日
 
 @author: zhangdebo
-@note: 跟进导入的web监控项，自动创建关联触发器
+@note: 根据导入的web监控项，自动创建关联触发器
 '''
 import mysql.connector
 from dbconn import queryIds
 from dbconn import updateIds
-#DB
-dbhost_zabbix="127.0.0.1"
-username_zabbix="root"
-password_zabbix="1234"
-#自动部署系统的库名
-dbname_zabbix="zabbix" 
 
+#Zabbix
+dbhost_zabbix="192.168.3.52"
+username_zabbix="zabbix"
+password_zabbix="3G_gomo_2015"
+dbname_zabbix="zabbix_new" 
 dbport_zabbix = 3306
 
 config_zabbix={'host':dbhost_zabbix,#默认127.0.0.1  
@@ -29,6 +28,8 @@ config_zabbix={'host':dbhost_zabbix,#默认127.0.0.1
 #告警级别
 priority=4
 
+#注意下面sql中 hostid in，如果主机增加需要多加一个%s
+hostid_data= [10350,10441]
 """
     {"key":[itemid,itemid],}
 """
@@ -43,11 +44,10 @@ def queryItems():
         sql="""
                 select key_,group_concat(itemid) from items 
                 where type=9 and name not in ('Last error message of scenario \"$1\".','Failed step of scenario \"$1\".','Download speed for scenario \"$1\".')
-                and hostid in (%s,%s,%s)
+                and hostid in (%s,%s)
                 group by key_
     """
-        data = [10084,10107,10108]
-        cursor.execute(sql,data)
+        cursor.execute(sql,hostid_data)
         """
             "web.test.rspcode["+i+","+j[0]+"]",60,30,90,0,3,""]
             "web.test.time["+i+","+j[0]+"]",60,30,90,0,0,"s"]
@@ -75,7 +75,7 @@ def insertTriggersAndFunctions():
                 """
         
         #根据key的类型，拼接不同的告警规则
-        #如过是time，则是小于100ms告警等
+        #如过是time，则是小于200ms告警等
         for i in dic_triggerMap.keys():
             functionid = queryIds("functions", "functionid")+1
             triggerid = queryIds("triggers", "triggerid") +1
@@ -90,7 +90,7 @@ def insertTriggersAndFunctions():
                     triggername="-返回码"
                     expression+="{%s}<>200 and " %(functionid+j)
                 if i.startswith("web.test.time"):
-                    triggername="-响应时间"
+                    triggername="-响应时间(s)"
                     expression+="{%s} > 0.2 and " %(functionid+j)
 #                 if i.startswith("web.test.in"):
             if len(expression) == 0:
