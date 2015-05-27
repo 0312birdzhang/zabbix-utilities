@@ -43,8 +43,10 @@ dic_esxihost={}
 #{host:[ip,cpu,mem,conn,[eth0,eth1],ip2...}
 dic_value={}
 dic_esxivalue={}
-key_cpu="system.cpu.load[percpu,avg5]"
-key_mem="system.swap.size[,pfree]"
+#key_cpu="system.cpu.load[percpu,avg5]"
+key_cpu="system.cpu.util[,idle]"
+key_mem_total="vm.memory.size[total]"
+key_mem_ava="vm.memory.size[available]"
 key_conn="netstat.established"
 
 key_esxi_cpu="hrCpuCoreUsedPer%"
@@ -193,9 +195,11 @@ def queryHistory(itemList,queryType):
             pass
         queryfrom="value_avg"
         if queryType == "mem":
-            queryfrom = "100 - value_avg"
+            queryfrom = "value_avg"
         elif queryType == "net":
             queryfrom = "value_avg/1000"
+        elif queryType == "cpu":
+            queryfrom ="100 - value_avg"
         else:
             pass
         sql_hist="select "+queryfrom+" from " + table_hist+" where itemid  = %s and clock > %s and clock < %s"
@@ -264,7 +268,7 @@ def numFactory(listnum):
 def createExcel():
     book=xlwt.Workbook(encoding='utf-8')
     table=book.add_sheet('IDC')
-    title=["hostname","IP","cpu负载(个)","内存占用(%)","连接数(个)","网卡","流量(kbps)"]
+    title=["hostname","IP","cpu使用率","内存占用(%)","连接数(个)","网卡","流量(kbps)"]
     #写入表头
     for i in xrange(len(title)):
         table.write(0,i,title[i])
@@ -325,12 +329,13 @@ def createExcel():
     book.save(excel_file)
 
 def init():
+    print "开始执行..."
     queryHost()
     if not dic_host:
         print "host empty"
         return
     for i,j in dic_host.items():
-        #print "处理主机:",j[1]
+        print "处理主机:",j[1]
         #queryItems_net(i)
         itemlist_cpu=queryItems_others(i,key_cpu)
         value_cpulist=queryHistory(itemlist_cpu,"cpu")
@@ -339,7 +344,6 @@ def init():
         #itemlist_mem=
         #网络
         itemlist_net = queryItems_net(i)
-        #print "net:",itemlist_net
         #{key_:value}
         dic_net={}
         if not itemlist_net:
@@ -350,10 +354,18 @@ def init():
             dic_net[k[4]] =avg_num
         dic_value[j[1]].append(dic_net)
         #内存
-        itemlist_mem=queryItems_others(i, key_mem)
-        value_menlist=queryHistory(itemlist_mem,"mem")
-        avg_num=numFactory(value_menlist)
-        dic_value[j[1]].append(avg_num)
+        itemlist_mem_total=queryItems_others(i, key_mem_total)
+        value_menlist_total=queryHistory(itemlist_mem_total,"mem")
+        avg_num_tot=numFactory(value_menlist_total)
+        
+        itemlist_mem_ava=queryItems_others(i, key_mem_ava)
+        value_menlist_ava=queryHistory(itemlist_mem_ava,"mem")
+        avg_num_ava=numFactory(value_menlist_ava)
+        if avg_num_tot == 0:
+            dic_value[j[1]].append(0)
+        else:
+            avg_num_pused=(1-  float(avg_num_ava)/avg_num_tot)*100
+            dic_value[j[1]].append(avg_num_pused)
         #连接数
         itemlist_conn=queryItems_others(i, key_conn)
         value_conn=queryHistory(itemlist_conn,"")
@@ -368,7 +380,7 @@ def init():
         print "esxi host empty"
         return
     for i,j in dic_esxihost.items():
-        #print "处理主机:",j[1]
+        print "处理主机:",j[1]
         #esxi cpu
         itemlist_esxicpu=queryItems_esxi(i, key_esxi_cpu)
         dic_esxicpu=[]
