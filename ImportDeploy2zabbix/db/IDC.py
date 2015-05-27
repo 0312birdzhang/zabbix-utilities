@@ -11,7 +11,7 @@ Created on 2015年5月26日
 import mysql.connector
 import time
 import xlwt
-
+import datetime
 #导出的excel名
 excel_file = "/home/zhangdebo/IDC.xls"
 #创建的应用程序名称
@@ -47,12 +47,13 @@ key_cpu="system.cpu.load[percpu,avg5]"
 key_mem="system.swap.size[,pfree]"
 key_conn="netstat.established"
 
-key_esxi_cpu="hrCpuCoreUsedPer"
-key_esxi_mem="hrMemoryFreePerc"
+key_esxi_cpu="hrCpuCoreUsedPer%"
+key_esxi_mem="hrMemoryFreePerc%"
 key_esxi_net="ifHC%Octets%"
 key_esxi_conn=""
 
-start_time=time.time()
+starttime = datetime.datetime.now()
+
 """
     查询除esxi之外的主机
 """
@@ -294,19 +295,30 @@ def createExcel():
         col=1
         if len(y) >2 and y[2]:
             col=len(y[2])
-        table.write_merge(row,row+col-1,0,0,i)
-        table.write_merge(row,row+col-1,1,1,y[0])
-        table.write_merge(row,row+col-1,2,2,y[1])
-        #占位用
-        table.write_merge(row,row+col-1,3,3,y[-2])
-        table.write_merge(row,row+col-1,4,4,y[-1])
+#         table.write_merge(row,row+col-1,0,0,i)
+#         table.write_merge(row,row+col-1,1,1,y[0])
+#         table.write_merge(row,row+col-1,2,2,y[1])
+#         table.write_merge(row,row+col-1,3,3,y[-2])
+#         table.write_merge(row,row+col-1,4,4,y[-1])
         if col>1:
             tmp_cell=0
             for j,k in y[2].items():
-                #eth=j.split("[")[1].split("]")[0]
+                table.write(row+tmp_cell,0,i)
+                table.write(row+tmp_cell,1,y[0])
+                table.write(row+tmp_cell,2,y[1])
+                table.write(row+tmp_cell,3,y[-2])
+                table.write(row+tmp_cell,4,y[-1])
                 table.write(row+tmp_cell,5,j)
                 table.write(row+tmp_cell,6,k)
                 tmp_cell+=1
+        else:
+            table.write(row,0,i)
+            table.write(row,1,y[0])
+            table.write(row,2,y[1])
+            table.write(row,3,y[-2])
+            table.write(row,4,y[-1])
+            table.write(row,5,"")
+            table.write(row,6,"")
         row+=col
         
         
@@ -318,7 +330,7 @@ def init():
         print "host empty"
         return
     for i,j in dic_host.items():
-        print "处理主机:",j[1]
+        #print "处理主机:",j[1]
         #queryItems_net(i)
         itemlist_cpu=queryItems_others(i,key_cpu)
         value_cpulist=queryHistory(itemlist_cpu,"cpu")
@@ -356,7 +368,7 @@ def init():
         print "esxi host empty"
         return
     for i,j in dic_esxihost.items():
-        print "处理主机:",j[1]
+        #print "处理主机:",j[1]
         #esxi cpu
         itemlist_esxicpu=queryItems_esxi(i, key_esxi_cpu)
         dic_esxicpu=[]
@@ -367,7 +379,7 @@ def init():
                 dic_esxicpu.append(avg_num)
         else:
             dic_esxicpu.append(0)
-        dic_esxivalue[j[1]]=[j[0],numFactory(dic_esxicpu)]
+        dic_esxivalue[j[1]]=[j[0],str(numFactory(dic_esxicpu))+"%"]
         #网络
         itemlist_esxinet=queryItems_esxi(i, key_esxi_net)
         dic_esxinet={}
@@ -391,12 +403,9 @@ def init():
         #连接数
         #跳过
         dic_esxivalue[j[1]].append("")
-       
-        
-    print "dic_value:",dic_value
-    print "dic_esxivalue:",dic_esxivalue
     createExcel()
-    print "all done!"
+    endtime = datetime.datetime.now()
+    print "处理完成，耗时:",(endtime - starttime).seconds,"秒"
 
 if __name__ == "__main__":
     init()
