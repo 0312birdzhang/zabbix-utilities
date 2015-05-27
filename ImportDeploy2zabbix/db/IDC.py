@@ -193,13 +193,13 @@ def queryHistory(itemList,queryType):
             table_hist+="_uint"
         elif item_type == 0:
             pass
-        queryfrom="value_avg"
+        queryfrom="value_max"
         if queryType == "mem":
-            queryfrom = "value_avg"
+            queryfrom = "value_max"
         elif queryType == "net":
-            queryfrom = "value_avg/1000"
+            queryfrom = "value_max/1000"
         elif queryType == "cpu":
-            queryfrom ="100 - value_avg"
+            queryfrom ="100 - value_max"
         else:
             pass
         sql_hist="select "+queryfrom+" from " + table_hist+" where itemid  = %s and clock > %s and clock < %s"
