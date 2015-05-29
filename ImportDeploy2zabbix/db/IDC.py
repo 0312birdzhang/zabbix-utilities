@@ -21,14 +21,19 @@ excel_file = "/home/zhangdebo/IDC.xls"
 # password_zabbix="1234"
 # #自动部署系统的库名
 # dbname_zabbix="zabbix" 
-#dbhost_zabbix="192.168.3.52"
-dbhost_zabbix="pmysql09.rmz.gomo.com"
-username_zabbix="zabbix"
-password_zabbix="3G_gomo_2015"
-dbname_zabbix="zabbix_new" 
-dbport_zabbix = 3306
+# dbhost_zabbix="192.168.3.52"
+# dbhost_zabbix="pmysql09.rmz.gomo.com"
+# username_zabbix="zabbix"
+# password_zabbix="3G_gomo_2015"
+# dbname_zabbix="zabbix_new" 
+# dbport_zabbix = 3306
 
-dbport_zabbix = 3306
+dbhost_zabbix="192.168.1.31"
+username_zabbix="zabbix"
+password_zabbix="3Gwap_2009"
+dbname_zabbix="zabbix" 
+dbport_zabbix = 3759
+
 config_zabbix={'host':dbhost_zabbix,#默认127.0.0.1  
         'user':username_zabbix, 
         'password':password_zabbix,  
@@ -310,8 +315,12 @@ def createExcel():
                 table.write(row+tmp_cell,0,i)
                 table.write(row+tmp_cell,1,y[0])
                 table.write(row+tmp_cell,2,y[1])
-                table.write(row+tmp_cell,3,y[-2])
-                table.write(row+tmp_cell,4,y[-1])
+                if len(y) < 4:
+                    table.write(row+tmp_cell,3,0)
+                    table.write(row+tmp_cell,4,0)
+                else:
+                    table.write(row+tmp_cell,3,y[-2])
+                    table.write(row+tmp_cell,4,y[-1])
                 table.write(row+tmp_cell,5,j)
                 table.write(row+tmp_cell,6,k)
                 tmp_cell+=1
@@ -319,8 +328,12 @@ def createExcel():
             table.write(row,0,i)
             table.write(row,1,y[0])
             table.write(row,2,y[1])
-            table.write(row,3,y[-2])
-            table.write(row,4,y[-1])
+            if len(y) < 4:
+                table.write(row,3,0)
+                table.write(row,4,0)
+            else:
+                table.write(row,3,y[-2])
+                table.write(row,4,y[-1])
             table.write(row,5,"")
             table.write(row,6,"")
         row+=col
@@ -391,7 +404,7 @@ def init():
                 dic_esxicpu.append(avg_num)
         else:
             dic_esxicpu.append(0)
-        dic_esxivalue[j[1]]=[j[0],str(numFactory(dic_esxicpu))+"%"]
+        dic_esxivalue[j[1]]=[j[0],str(numFactory(dic_esxicpu))]
         #网络
         itemlist_esxinet=queryItems_esxi(i, key_esxi_net)
         dic_esxinet={}

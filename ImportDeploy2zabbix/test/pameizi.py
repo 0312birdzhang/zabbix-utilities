@@ -10,7 +10,8 @@ Created on 2015年5月28日
 import urllib2
 import re
 import os
- 
+
+HOME = os.path.expanduser("~")
 def getMeinv():
     # 首先应该分页解析所有的链接和名字
     # 定义页码
@@ -21,7 +22,7 @@ def getMeinv():
     linkAndName = getLinkAndName(responseHtml)
     print "len:",len(linkAndName)
     # 当找出的数据大于0的时候进入循环
-    while(len(linkAndName) > 0):
+    while(len(linkAndName) > 0 and page < 5):
         # 循环解析每个链接的数据
         for l in linkAndName:
             print l[0],l[1]
@@ -84,15 +85,15 @@ def getImageUrl(responseHtml):
     return findList
  
 def makeDir(dirName):
-    dirPath = os.getcwd() + '/' + dirName
+    dirPath = HOME+ '/meizi/' + dirName
     if not os.path.exists(dirPath):
         print '文件夹不存在，创建文件夹:' , dirName
         os.mkdir(dirPath)
     else:
-        print dirName,'以存在'
+        print dirName,'已存在'
  
 def writeImage(dirName,url):
-    dirPath = os.getcwd() + '/' + dirName
+    dirPath = HOME + '/meizi/' + dirName
     print '正在写出' + os.path.basename(url)
     try:
         r = urllib2.urlopen(url, timeout=8)
@@ -110,6 +111,6 @@ def writeImage(dirName,url):
             else:
                 break
  
- 
+
 if __name__ == '__main__':
     getMeinv();
